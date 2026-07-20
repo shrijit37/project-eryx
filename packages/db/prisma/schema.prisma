@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountType {
+  USER
+  AGENTIC
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPEND
+  CLOSED
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum LedgerType {
+  DEPOSIT
+  WITHDRAWAL
+  BUY
+  SELL
+  DIVIDEND
+  FEE
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  PENDING
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  REJECTED
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+model User {
+  id            String   @id @unique @default(cuid())
+  email         String   @unique
+  username      String  @unique
+  password_hash String
+  created_at    DateTime? @default(now())
+  updated_at    DateTime? @updatedAt
+
+  //relations 
+  account Account?
+  agent   Agent[]
+}
+
+model Agent {
+  id      String @id @default(cuid())
+  user    User   @relation(fields: [user_id], references: [id])
+  user_id String
+  name    String
+
+  description String
+  model       String
+  strategy    String
+  created_at  DateTime
+  updated_at  DateTime
+  accounts    Account[]
+}
+
+model Account {
+  id      String  @id @default(cuid())
+  user    User?   @relation(fields: [user_id], references: [id])
+  user_id String? @unique
+
+  agent    Agent?  @relation(fields: [agent_id], references: [id])
+  agent_id String?
+
+  account_type AccountType
+  cash_balance Float       @default(0)
+  blocked_cash Float       @default(0)
+
+  currency String
+
+  status AccountStatus
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  holdings    Holdings[]
+  order       Orders[]
+  cashLedgers CashLedger[]
+}
+
+model Stocks {
+  id           String  @id @default(cuid())
+  symbol       String  @unique
+  company_name String?
+  exchange     String?
+
+  current_price  Float
+  previous_close Float
+  listing_date   DateTime
+  is_active      Boolean  @default(true)
+
+  last_price_update DateTime       @default(now())
+  holdings          Holdings[]
+  orders            Orders[]
+  trades            Trades[]
+  priceHistory      PriceHistory[]
+}
+
+model Holdings {
+  id                String   @id @default(cuid())
+  account           Account  @relation(fields: [account_id], references: [id])
+  account_id        String
+  stock             Stocks   @relation(fields: [stock_id], references: [id])
+  stock_id          String
+  quantity          Float
+  average_buy_price Float
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@unique([account_id, stock_id])
+}
+
+model Orders {
+  id                 String      @id @default(cuid())
+  account_id         String
+  stock_id           String
+  side               OrderSide
+  type               OrderType
+  quantity           Float
+  remaining_quantity Float
+  limit_price        Float
+  executed_price     Float
+  status             OrderStatus
+  created_at         DateTime    @default(now())
+  updated_at         DateTime    @updatedAt
+  account            Account     @relation(fields: [account_id], references: [id])
+  stock              Stocks      @relation(fields: [stock_id], references: [id])
+  buyTrades          Trades[]    @relation("buy order trades")
+  sellTrades         Trades[]    @relation("sell order trades")
+}
+
+model Trades {
+  id              String   @id @default(cuid())
+  stock_id        String
+  buy_order_id    String
+  sell_order_id   String
+  quantity        Float
+  execution_price Float
+  executed_at     DateTime @default(now())
+  buy_order       Orders   @relation("buy order trades", fields: [buy_order_id], references: [id])
+  sell_order      Orders   @relation("sell order trades", fields: [sell_order_id], references: [id])
+  stock           Stocks   @relation(fields: [stock_id], references: [id])
+}
+
+model CashLedger {
+  id            String     @id @default(cuid())
+  account_id    String
+  type          LedgerType
+  amount        Float
+  balance_after Float
+  reference_id  String
+  description   String
+  created_at    DateTime
+  account       Account    @relation(fields: [account_id], references: [id])
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  stock_id  String
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    BigInt
+  timestamp DateTime @default(now())
+  timeframe String
+  stock     Stocks   @relation(fields: [stock_id], references: [id])
+
+  @@index([stock_id, timestamp])
+}

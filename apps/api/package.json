@@ -1,0 +1,25 @@
+{
+  "name": "@project-eryx/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/app.ts",
+    "start": "node dist/app.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'No linter configured yet'"
+  },
+  "dependencies": {
+    "@project-eryx/db": "workspace:*",
+    "@project-eryx/shared-types": "workspace:*",
+    "@project-eryx/execution-engine": "workspace:*",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  }
+}

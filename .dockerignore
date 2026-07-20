@@ -1,0 +1,17 @@
+.git
+.gitignore
+node_modules/
+backend/node_modules/
+**/node_modules/
+dist/
+build/
+.next/
+out/
+.vercel/
+.turbo/
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.webm
+*.md

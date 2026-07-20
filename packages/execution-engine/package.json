@@ -1,0 +1,24 @@
+{
+  "name": "@project-eryx/execution-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./risk": "./src/risk-engine.ts",
+    "./pricing": "./src/pricing/slippage-curve.ts",
+    "./matching": "./src/matching/matching-engine.ts"
+  },
+  "scripts": {
+    "test": "echo 'No tests yet'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@project-eryx/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

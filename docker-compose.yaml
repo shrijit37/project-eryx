@@ -1,0 +1,31 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: project_eryx_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=project_eryx
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d project_eryx"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:latest
+    container_name: project_eryx_redis
+    ports:
+      - "6379:6379"
+    restart: always
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
