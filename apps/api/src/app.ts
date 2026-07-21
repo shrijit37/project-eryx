@@ -1,9 +1,11 @@
 import dotenv from "dotenv";
+import { Redis } from "ioredis";
 dotenv.config();
 
 import express from "express";
 import authRouter from "./modules/auth/auth.routes";
 import { rateLimit, MINUTE } from "express-rate-limit";
+import { prisma } from "@project-eryx/db";
 
 
 const app = express();
@@ -35,6 +37,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(limiter)
 
 //routes
+app.get("/api/health", async (req, res) => {
+    try {
+        await prisma.$connect();
+        const redis = new Redis();
+        await redis.ping()
+        res.send("Database and redis working... all systems healthy");
+    } catch (e: any) {
+        res.json({
+            message: e.error
+        })
+    }
+});
+
+//auth routes
 app.use("/api/auth", authRouter);
 
 
