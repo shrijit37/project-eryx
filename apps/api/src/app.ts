@@ -1,3 +1,10 @@
+// import priceService from "./modules/market_price/market_price.services";
+
+// const ps = new priceService();
+// const x = await ps.getMarketState();
+// console.log(x);
+
+
 import dotenv from "dotenv";
 import { Redis } from "ioredis";
 dotenv.config();
@@ -6,7 +13,7 @@ import express from "express";
 import authRouter from "./modules/auth/auth.routes";
 import { rateLimit, MINUTE } from "express-rate-limit";
 import { prisma } from "@project-eryx/db";
-
+// import marketRouter from "./modules/market_price/market_price.routes";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -52,9 +59,9 @@ app.get("/api/health", async (req, res) => {
 
 //auth routes
 app.use("/api/auth", authRouter);
+// app.use("/api/market", marketRouter)
 
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-

@@ -8,5 +8,6 @@ dependencies = [
     "asyncpg>=0.31.0",
     "python-dotenv>=1.1.0",
     "redis>=8.0.1",
+    "schedule>=1.2.2",
     "yfinance>=1.5.1",
 ]

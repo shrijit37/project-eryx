@@ -1,6 +1,6 @@
 import { prisma } from "@project-eryx/db";
 import type { Prisma } from "@project-eryx/db";
-import { Ticker } from "yfinance-ts";
+import { Search, Ticker } from "yfinance-ts";
 
 const getStockData = async (
   initTickers: string[]
@@ -31,9 +31,9 @@ const getStockData = async (
       }
 
       return {
-        symbol: info.symbol ?? symbol,
+        symbol: info.symbol ?? "symbol",
         company_name: info.shortName ?? null,
-        exchange: info.exchange ?? "NYSE",
+        exchange: info.exchange ?? "",
         current_price,
         previous_close,
         listing_date,
@@ -74,6 +74,7 @@ async function main() {
 
   try {
     const stocksData = await getStockData(initTickers);
+    // const info = await Search.search("AAPL");
 
     const result = await prisma.stocks.createMany({
       data: stocksData,

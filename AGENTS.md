@@ -141,18 +141,18 @@ qty > 10k         → escalating slippage or partial reject
 ### Phase 0 — Foundations (0.5–1 week)
 
 - Repo scaffold: express API + Next.js frontend in a monorepo (pnpm workspaces or Turborepo)
-- Postgres schema + migrations (Prisma or Drizzle — pick one, Drizzle is lighter for this kind of financial schema work)
-- Redis running locally (Docker Compose)
-- Auth: simple email/password or magic link for users; API-key issuance flow for agents
-- **Deliverable:** empty app, DB migrated, auth works, agent can obtain an API key
+- Postgres schema + migrations (Prisma or Drizzle — pick one, Drizzle is lighter for this kind of financial schema work)       :✅
+- Redis running locally (Docker Compose) :✅
+- Auth: simple email/password or magic link for users; API-key issuance flow for agents ✅
+- **Deliverable:** empty app, DB migrated, auth works, agent can obtain an API key ✅
 
 ### Phase 1 — Market Data Pipeline (Level 1 simulator, ~1 week)
 
-- Market Data Ingestor worker: connects to chosen provider (WS if available, else polling REST every N seconds), normalizes payload to internal shape `{symbol, bid, ask, ltp, ts}`
-- Write latest price into Redis (`price:{symbol}` hash)
-- WebSocket Gateway: pushes price updates to subscribed frontend clients
-- Basic instruments table seeded with a fixed watchlist (start with 10–20 liquid symbols, not the whole market)
-- **Deliverable:** live prices visible on a simple dashboard for a fixed symbol list
+- Market Data Ingestor worker: connects to chosen provider (WS if available, else polling REST every N seconds), normalizes payload to internal shape `{symbol, bid, ask, ltp, ts}`  ✅
+- Write latest price into Redis (`price:{symbol}` hash)  ✅
+- WebSocket Gateway: pushes price updates to subscribed frontend clients  || frontend part not done yet 
+- Basic instruments table seeded with a fixed watchlist (start with 10–20 liquid symbols, not the whole market)  ✅
+- **Deliverable:** live prices visible on a simple dashboard for a fixed symbol list ✅
 
 ### Phase 2 — Order Lifecycle + Simple Execution (Level 1→2, ~1–1.5 weeks)
 

@@ -1,6 +1,8 @@
-def main():
-    print("Hello from market-data-worker!")
+from src.main import main
+import asyncio
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(
+        main()
+    )
