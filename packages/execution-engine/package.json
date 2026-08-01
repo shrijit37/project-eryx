@@ -12,7 +12,7 @@
     "./matching": "./src/matching/matching-engine.ts"
   },
   "scripts": {
-    "test": "echo 'No tests yet'",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
