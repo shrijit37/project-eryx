@@ -70,10 +70,12 @@ model User {
 }
 
 model Agent {
-  id      String @id @default(cuid())
-  user    User   @relation(fields: [user_id], references: [id])
-  user_id String
-  name    String
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [user_id], references: [id])
+  user_id      String
+  name         String
+  api_key_hash String?  @unique
+  is_active    Boolean  @default(true)
 
   description String
   model       String
@@ -94,6 +96,7 @@ model Account {
   account_type AccountType
   cash_balance Float       @default(0)
   blocked_cash Float       @default(0)
+  is_arena     Boolean     @default(false)
 
   currency String
 
@@ -105,6 +108,7 @@ model Account {
   holdings    Holdings[]
   order       Orders[]
   cashLedgers CashLedger[]
+  trades      Trades[]
 }
 
 model Stocks {
@@ -147,8 +151,8 @@ model Orders {
   type               OrderType
   quantity           Float
   remaining_quantity Float
-  limit_price        Float
-  executed_price     Float
+  limit_price        Float?
+  executed_price     Float?
   status             OrderStatus
   created_at         DateTime    @default(now())
   updated_at         DateTime    @updatedAt
@@ -160,14 +164,16 @@ model Orders {
 
 model Trades {
   id              String   @id @default(cuid())
+  account_id      String?
   stock_id        String
-  buy_order_id    String
-  sell_order_id   String
+  buy_order_id    String?
+  sell_order_id   String?
   quantity        Float
   execution_price Float
   executed_at     DateTime @default(now())
-  buy_order       Orders   @relation("buy order trades", fields: [buy_order_id], references: [id])
-  sell_order      Orders   @relation("sell order trades", fields: [sell_order_id], references: [id])
+  account         Account? @relation(fields: [account_id], references: [id])
+  buy_order       Orders?  @relation("buy order trades", fields: [buy_order_id], references: [id])
+  sell_order      Orders?  @relation("sell order trades", fields: [sell_order_id], references: [id])
   stock           Stocks   @relation(fields: [stock_id], references: [id])
 }
 
