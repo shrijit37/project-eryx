@@ -1,6 +1,7 @@
 import { Prisma, prisma, type User } from "@project-eryx/db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { DEFAULT_INITIAL_CAPITAL } from "../../lib/constants";
 
 //types
 import type { ControllerResult } from "./auth.validation";
@@ -33,6 +34,34 @@ export const handleRegister = async (
         created_at: new Date(),
         updated_at: new Date(),
       },
+    });
+
+    // Provision a default funded paper-trading account so the user can
+    // place orders immediately. The initial capital is recorded in the
+    // immutable ledger (DEPOSIT) so leaderboard P&L can be computed as
+    // equity − initial deposits.
+    await prisma.$transaction(async (tx) => {
+      const account = await tx.account.create({
+        data: {
+          user_id: user.id,
+          account_type: "USER",
+          cash_balance: DEFAULT_INITIAL_CAPITAL,
+          blocked_cash: 0,
+          currency: "USD",
+          status: "ACTIVE",
+        },
+      });
+      await tx.cashLedger.create({
+        data: {
+          account_id: account.id,
+          type: "DEPOSIT",
+          amount: DEFAULT_INITIAL_CAPITAL,
+          balance_after: DEFAULT_INITIAL_CAPITAL,
+          reference_id: `initial-${user.id}`,
+          description: "Initial paper-trading capital",
+          created_at: new Date(),
+        },
+      });
     });
 
     const { password_hash, ...userWithoutPassword } = user;

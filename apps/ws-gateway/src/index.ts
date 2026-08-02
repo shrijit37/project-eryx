@@ -21,19 +21,28 @@ async function main() {
 
     await sub.ping();
     console.log("Redis connected.");
-    await sub.subscribe("prices");
+    await sub.subscribe("prices", "updates");
 
-    sub.on("message", (_, message) => {
-      try {
-        var price = JSON.parse(message);
-      } catch (e) {
-        console.log(e)
-        return
+    sub.on("message", (channel, message) => {
+      if (channel === "prices") {
+        try {
+          const price = JSON.parse(message);
+          io.to(price.symbol).emit("price", price);
+        } catch (e) {
+          console.error("bad price payload", e);
+        }
+        return;
       }
 
-      console.log(price);
-
-      io.to(price.symbol).emit("price", price);
+      if (channel === "updates") {
+        try {
+          const update = JSON.parse(message);
+          // { accountId, event, payload, ts }
+          io.to(`account:${update.accountId}`).emit(update.event, update.payload);
+        } catch (e) {
+          console.error("bad update payload", e);
+        }
+      }
     });
 
     io.on("connection", (socket) => {
@@ -42,6 +51,12 @@ async function main() {
       socket.on("subscribe", (symbol: string) => {
         socket.join(symbol);
         console.log(`${socket.id} subscribed to ${symbol}`);
+      });
+
+      // Join the client's own account room to receive order/portfolio updates.
+      socket.on("subscribe-account", (accountId: string) => {
+        socket.join(`account:${accountId}`);
+        console.log(`${socket.id} subscribed to account:${accountId}`);
       });
 
       socket.on("disconnect", () => {
