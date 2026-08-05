@@ -29,8 +29,7 @@ else
 fi
 
 echo "==> [4/7] Generating Prisma client + applying migrations"
-bunx prisma generate --schema packages/db/prisma/schema.prisma
-bunx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+(cd packages/db && bunx prisma generate && bunx prisma migrate deploy)
 
 echo "==> [5/7] Seeding symbols (idempotent, best-effort)"
 (cd packages/db && bunx tsx prisma/seed.ts) || echo "!! seed did not fully complete - check logs"

@@ -1,90 +1,57 @@
 import { prisma } from "@project-eryx/db";
 import type { Prisma } from "@project-eryx/db";
-import { Search, Ticker } from "yfinance-ts";
 
-const getStockData = async (
-  initTickers: string[]
-): Promise<Prisma.StocksCreateManyInput[]> => {
-  const data = await Promise.all(
-    initTickers.map(async (symbol) => {
-      const ticker = new Ticker(symbol);
-      const info = await ticker.info();
-      const livePrice = await ticker.getPrice();
+/**
+ * Static reference watchlist. Live quotes are served at runtime by the
+ * market-data worker; this only provisions the instrument rows so a fresh
+ * database is usable immediately without depending on an upstream quote API
+ * during the initial seed.
+ */
+const WATCHLIST: Array<{ symbol: string; name: string; exchange: string; basePrice: number }> = [
+  { symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ", basePrice: 224.5 },
+  { symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", basePrice: 118.2 },
+  { symbol: "MSFT", name: "Microsoft Corp.", exchange: "NASDAQ", basePrice: 428.9 },
+  { symbol: "GOOG", name: "Alphabet Inc.", exchange: "NASDAQ", basePrice: 175.4 },
+  { symbol: "AMZN", name: "Amazon.com Inc.", exchange: "NASDAQ", basePrice: 182.4 },
+  { symbol: "META", name: "Meta Platforms Inc.", exchange: "NASDAQ", basePrice: 475.6 },
+  { symbol: "TSLA", name: "Tesla Inc.", exchange: "NASDAQ", basePrice: 219.8 },
+  { symbol: "AVGO", name: "Broadcom Inc.", exchange: "NASDAQ", basePrice: 162.5 },
+  { symbol: "JPM", name: "JPMorgan Chase & Co.", exchange: "NYSE", basePrice: 208.4 },
+  { symbol: "WMT", name: "Walmart Inc.", exchange: "NYSE", basePrice: 68.2 },
+  { symbol: "BRK-A", name: "Berkshire Hathaway Inc.", exchange: "NYSE", basePrice: 678400.0 },
+  { symbol: "LLY", name: "Eli Lilly and Co.", exchange: "NYSE", basePrice: 942.5 },
+  { symbol: "V", name: "Visa Inc.", exchange: "NYSE", basePrice: 268.4 },
+  { symbol: "XOM", name: "Exxon Mobil Corp.", exchange: "NYSE", basePrice: 118.7 },
+  { symbol: "JNJ", name: "Johnson & Johnson", exchange: "NYSE", basePrice: 154.2 },
+  { symbol: "PG", name: "Procter & Gamble Co.", exchange: "NYSE", basePrice: 168.9 },
+  { symbol: "MA", name: "Mastercard Inc.", exchange: "NYSE", basePrice: 452.3 },
+  { symbol: "KO", name: "The Coca-Cola Co.", exchange: "NYSE", basePrice: 64.8 },
+  { symbol: "HD", name: "The Home Depot Inc.", exchange: "NYSE", basePrice: 365.1 },
+  { symbol: "NFLX", name: "Netflix Inc.", exchange: "NASDAQ", basePrice: 642.1 },
+];
 
-      // Determine current price: prefer regularMarketPrice, fallback to getPrice()
-      const current_price = info.regularMarketPrice ?? livePrice ?? 0;
-
-      // Determine previous close: prefer regularMarketPreviousClose, fallback to previousClose
-      const previous_close =
-        info.regularMarketPreviousClose ?? info.previousClose ?? 0;
-
-      // Determine listing date: fetch max history and use the earliest data point
-      let listing_date = new Date();
-      try {
-        const history = await ticker.history({ period: "max", interval: "1mo" });
-        if (history.data.length > 0) {
-          listing_date = new Date(history.data[0].date);
-        }
-      } catch {
-        // If history fetch fails, fall back to current date
-        console.warn(`Could not fetch history for ${symbol}, using current date as listing_date`);
-      }
-
-      return {
-        symbol: info.symbol ?? "symbol",
-        company_name: info.shortName ?? null,
-        exchange: info.exchange ?? "",
-        current_price,
-        previous_close,
-        listing_date,
-        is_active: true,
-        last_price_update: new Date(),
-      };
-    })
-  );
-
-  return data;
-};
+function toStockRows(): Prisma.StocksCreateManyInput[] {
+  return WATCHLIST.map(({ symbol, name, exchange, basePrice }) => ({
+    symbol,
+    company_name: name,
+    exchange,
+    current_price: basePrice,
+    previous_close: Number((basePrice * 0.992).toFixed(2)),
+    listing_date: new Date("2024-01-02"),
+    is_active: true,
+    last_price_update: new Date(),
+  }));
+}
 
 async function main() {
   console.log("Seeding database...");
 
-  const initTickers: string[] = [
-    "AAPL",
-    "NVDA",
-    "MSFT",
-    "GOOG",
-    "AMZN",
-    "META",
-    "TSLA",
-    "AVGO",
-    "JPM",
-    "WMT",
-    "BRK-A",
-    "LLY",
-    "V",
-    "XOM",
-    "JNJ",
-    "PG",
-    "MA",
-    "KO",
-    "HD",
-    "NFLX",
-  ];
+  const result = await prisma.stocks.createMany({
+    data: toStockRows(),
+    skipDuplicates: true,
+  });
 
-  try {
-    const stocksData = await getStockData(initTickers);
-    // const info = await Search.search("AAPL");
-
-    const result = await prisma.stocks.createMany({
-      data: stocksData,
-      skipDuplicates: true,
-    });
-
-    console.log(`Seed completed successfully. Inserted ${result.count} stocks.`);
-  } catch (e) {
-    console.error("Failed to seed database:", e);
-  }
+  console.log(`Seed completed successfully. Inserted ${result.count} stocks (+ skipped existing).`);
 }
 
 main()
