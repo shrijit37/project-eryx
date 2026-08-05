@@ -28,6 +28,10 @@ jobs:
       - name: Generate Prisma client
         working-directory: packages/db
         run: bunx prisma generate
+        env:
+          # prisma.config.ts resolves the datasource URL via env(); the
+          # generator never connects, but the variable must be present.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/project_eryx?schema=public
 
       - name: Typecheck
         run: bun run typecheck
