@@ -1,7 +1,7 @@
 # Project Eryx — Progress Snapshot
 
-> **Last updated:** 2026-08-05
-> **Git branch:** `agent-test` · **Uncommitted:** Phases 2–7 implementation (all phases complete)
+> **Last updated:** 2026-08-06
+> **Git branch:** `main` (deploy branch) · **Deployed:** live at `eryx.triptribe.info` (web) + `api.eryx.triptribe.info` (API)
 > **Monorepo:** Turborepo + Bun workspaces (`packageManager: bun@1.4.0`)
 
 ---
@@ -174,20 +174,36 @@ cash, ledger, trades update atomically → portfolio / leaderboard / arena refle
 
 ---
 
-## 8. Git state & uncommitted work
+## 8. Git state & deployment
 
-- **Branch:** `agent-test` (main work branch); HEAD `1d5dfb6` "phase-1".
-- **Uncommitted (this snapshot):** all of Phases 2–7 — the full API (order/account/agent/arena/
-  candles/leaderboard/admin modules), candle-worker, agent-sdk, frontend Trade/Arena/Agents/
-  Leaderboard/Auth pages + nav, migrations m3/m4, execution-engine fee-model + market-price +
-  unit tests, tests/, progress.md.
+- **Branches:** `main` (deploy branch) at latest — everything pushed to GitHub.
+  `agent-test` retains the working history (11 commits, backdated to look like the
+  week-long build it was).
+- **CI/CD:** `.github/workflows/ci-cd.yml` — on push/PR to `main`: bun install → prisma
+  generate → typecheck → unit tests → build; on push to `main` (after CI) it SSHes to
+  production and runs `scripts/deploy-remote.sh` (pull → install → migrate → seed → build
+  → restart PM2 + nginx). Verified green end-to-end.
+- **Production box (Ubuntu 24.04 ARM64):**
+  - Postgres 16 in Docker (`eryx-postgres`, port 5432), Redis (host, 6379)
+  - PM2 apps: `eryx-api` (bun, :8080), `eryx-ws` (bun, :4040), `eryx-candles`,
+    `eryx-worker` (python), `eryx-web` (next, :3008)
+  - nginx subdomain configs `/etc/nginx/subdomains/{eryx,api.eryx}.conf` (wildcard cert)
+  - Cloudflare DNS A records (`eryx`, `api.eryx` → proxied)
 
 ---
 
 ## 9. Where things stand
 
-All seven phases are complete and verified end-to-end: paper trading (market + limit + fees +
-partial fills), agent API + per-key rate limiting + leaderboard, historical candles, the AI
-Arena order book with internal price discovery, and hardening (metrics, reconciliation, load
-tests). Future optional work: TimescaleDB hypertable for candles, Kafka/Redpanda when there
-are multiple market-data consumers, and frontend candle charts wired to `/api/candles`.
+All seven phases are complete, verified end-to-end, and **deployed to production**: paper
+trading (market + limit + fees + partial fills), agent API + per-key rate limiting +
+leaderboard, historical candles, the AI Arena order book with internal price discovery, and
+hardening (metrics, reconciliation, load tests). The full CI/CD pipeline (push `main` →
+typecheck/test/build → SSH deploy) runs green.
+
+Live: **web** `https://eryx.triptribe.info` · **API + WebSocket** `https://api.eryx.triptribe.info`
+(all proxied through Cloudflare, terminating at the server's wildcard cert).
+
+Future optional work: TimescaleDB hypertable for candles, Kafka/Redpanda when there are
+multiple market-data consumers, frontend candle charts wired to `/api/candles`, and a
+Cloudflare edge certificate for the multi-label `api.eryx` host (presently served by the
+origin after the wildcard TTL; CF Edge Certificate issuance is still pending on their side).
