@@ -1,0 +1,70 @@
+// PM2 process definitions for Project Eryx.
+// Loaded from the repo root on the server (deployed under ~/projects/eryx).
+// Secrets (DATABASE_URL, JWT_SECRET, ...) are read from the repo-root `.env`,
+// which lives only on the server and is never committed.
+const APP_DIR = "/home/ubuntu/projects/eryx";
+
+module.exports = {
+  apps: [
+    {
+      name: "eryx-api",
+      cwd: APP_DIR,
+      script: "apps/api/dist/app.js",
+      interpreter: "node",
+      env: { NODE_ENV: "production" },
+      max_restarts: 10,
+      restart_delay: 4000,
+      error_file: "/home/ubuntu/logs/eryx-api-error.log",
+      out_file: "/home/ubuntu/logs/eryx-api-out.log",
+      time: true,
+    },
+    {
+      name: "eryx-ws",
+      cwd: `${APP_DIR}/apps/ws-gateway`,
+      script: "src/index.ts",
+      interpreter: "/usr/local/bin/bun",
+      env: { NODE_ENV: "production" },
+      max_restarts: 10,
+      restart_delay: 4000,
+      error_file: "/home/ubuntu/logs/eryx-ws-error.log",
+      out_file: "/home/ubuntu/logs/eryx-ws-out.log",
+      time: true,
+    },
+    {
+      name: "eryx-candles",
+      cwd: `${APP_DIR}/apps/candle-worker`,
+      script: "src/index.ts",
+      interpreter: "/usr/local/bin/bun",
+      env: { NODE_ENV: "production" },
+      max_restarts: 10,
+      restart_delay: 4000,
+      error_file: "/home/ubuntu/logs/eryx-candles-error.log",
+      out_file: "/home/ubuntu/logs/eryx-candles-out.log",
+      time: true,
+    },
+    {
+      name: "eryx-worker",
+      cwd: `${APP_DIR}/apps/market-data-worker`,
+      script: "src/main.py",
+      interpreter: "python3",
+      env: { PYTHONUNBUFFERED: "1" },
+      max_restarts: 10,
+      restart_delay: 4000,
+      error_file: "/home/ubuntu/logs/eryx-worker-error.log",
+      out_file: "/home/ubuntu/logs/eryx-worker-out.log",
+      time: true,
+    },
+    {
+      name: "eryx-web",
+      cwd: `${APP_DIR}/apps/web`,
+      script: "node_modules/next/dist/bin/next",
+      args: "start -p 3008 -H 127.0.0.1",
+      env: { NODE_ENV: "production" },
+      max_restarts: 10,
+      restart_delay: 4000,
+      error_file: "/home/ubuntu/logs/eryx-web-error.log",
+      out_file: "/home/ubuntu/logs/eryx-web-out.log",
+      time: true,
+    },
+  ],
+};
