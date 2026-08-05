@@ -146,7 +146,7 @@ qty > 10k         → escalating slippage or partial reject
 - Auth: simple email/password or magic link for users; API-key issuance flow for agents ✅
 - **Deliverable:** empty app, DB migrated, auth works, agent can obtain an API key ✅
 
-### Phase 1 — Market Data Pipeline (Level 1 simulator, ~1 week)
+### Phase 1 — Market Data Pipeline (Level 1 simulator, ~1 week)          --- 31-July-2026
 
 - Market Data Ingestor worker: connects to chosen provider (WS if available, else polling REST every N seconds), normalizes payload to internal shape `{symbol, bid, ask, ltp, ts}`  ✅
 - Write latest price into Redis (`price:{symbol}` hash)  ✅
@@ -154,51 +154,51 @@ qty > 10k         → escalating slippage or partial reject
 - Basic instruments table seeded with a fixed watchlist (start with 10–20 liquid symbols, not the whole market)  ✅
 - **Deliverable:** live prices visible on a simple dashboard for a fixed symbol list ✅
 
-### Phase 2 — Order Lifecycle + Simple Execution (Level 1→2, ~1–1.5 weeks)
+### Phase 2 — Order Lifecycle + Simple Execution (Level 1→2, ~1–1.5 weeks)     ✅ DONE
+  
+- Order Service: POST /orders (MARKET orders) ✅
+- Risk Engine: cash check, market-hours check (configurable), stale-price kill ✅
+- Execution Engine: fill at current ask/bid with slippage, single DB transaction (trade → order → position → cash → ledger) ✅
+- Portfolio Service: positions, cash balance, trade history endpoints ✅
+- **Deliverable:** a user or agent can place a market order and see portfolio update correctly ✅ — concurrency verified under 25 concurrent orders (FOR UPDATE row lock), ledger reconciles
 
-- Order Service: POST /orders (MARKET orders only to start)
-- Risk Engine: cash check, market-hours check
-- Execution Engine: fill at current ask/bid (no slippage model yet) — get the transactional plumbing rock solid first
-- Portfolio Service: positions, cash balance, trade history endpoints
-- **Deliverable:** a user or agent can place a market order and see portfolio update correctly, with correct DB consistency under concurrent orders (test this explicitly — concurrent BUY/SELL race conditions on the same account are the highest-risk bug class here)
+### Phase 3 — Realistic Execution (Level 2, ~1 week)   ✅ DONE
 
-### Phase 3 — Realistic Execution (Level 2, ~1 week)
+- Add LIMIT order type + order queuing (rest → trigger loop fills on cross) ✅
+- Add slippage/liquidity model (qty-tiered SlippageCurve) ✅
+- Add trading fees (flat % via FeeModel) ✅
+- Add partial fills (PARTIALLY_FILLED + weighted avg execution price) ✅
+- **Deliverable:** execution behaves like a real broker — spread-aware, size-aware, fee-aware ✅
 
-- Add LIMIT order type + basic order queuing (limit orders wait until price crosses)
-- Add slippage/liquidity model (qty-tiered as above)
-- Add trading fees (flat % or per-share)
-- Add partial fills
-- **Deliverable:** execution behaves like a real broker — spread-aware, size-aware, fee-aware
+### Phase 4 — Agent-Facing API + Sandbox Ergonomics (~1 week)   ✅ DONE
 
-### Phase 4 — Agent-Facing API + Sandbox Ergonomics (~1 week)
+- Stable REST API for agents: place/cancel orders, get portfolio, get price, get historical candles ✅
+- Rate limiting per agent key (Redis-windowed, 60 req/min default) ✅
+- Leaderboard (P&L ranking = equity − net deposits) cached in Redis ✅
+- TS/agent SDK (`@project-eryx/agent-sdk`) so agents can be scripted quickly ✅
+- **Deliverable:** an external AI agent (script calling the API) can run a full trading loop unattended ✅
 
-- Stable REST API for agents: place/cancel orders, get portfolio, get price, get historical candles
-- Rate limiting per agent key
-- Leaderboard (P&L ranking) cached in Redis
-- Optional: a simple SDK/wrapper (TS or Python) so agents can be scripted quickly — good fit for your existing interest in agent tooling
-- **Deliverable:** an external AI agent (e.g. a script calling your API) can run a full trading loop unattended
+### Phase 5 — Historical Data + Analytics (~1 week, can run parallel to Phase 4)   ✅ DONE
 
-### Phase 5 — Historical Data + Analytics (~1 week, can run parallel to Phase 4)
+- Candle Worker (`apps/candle-worker`) consumes the Redis `prices` stream and aggregates OHLC per interval (1m/5m/15m/1h/1d) into the `PriceHistory` table ✅
+- Historical charting endpoints (`/api/candles/:symbol`, agent `/api/agent/candles/:symbol`) ✅
+- **Deliverable:** price charts with real historical candles, not just live ticks ✅
+- Note: uses the existing Postgres `PriceHistory` table (indexed [stock_id, timestamp]) rather than a TimescaleDB hypertable — functionally equivalent for this simulator without destabilizing the running DB engine
 
-- Introduce TimescaleDB hypertable for candles
-- Candle Worker consumes Redis price stream (or Postgres NOTIFY, or Kafka if you're already there) and aggregates OHLC per interval
-- Historical charting endpoints for frontend
-- **Deliverable:** price charts with real historical candles, not just live ticks
+### Phase 6 — AI Arena Mode (Level 3, the interesting part, ~2–3 weeks)   ✅ DONE
 
-### Phase 6 — AI Arena Mode (Level 3, the interesting part, ~2–3 weeks)
+- Actual order book per symbol (in-memory, price-time priority, `ArenaBook`) ✅
+- Matching Engine: limit orders rest in the book; market orders sweep it; trades generate real internal price movement (internal LTP diverges from the real reference) ✅
+- Arena starts from the real reference price, then diverges based on internal supply/demand ✅
+- Separate account/leaderboard namespace (`Account.is_arena`) so Arena P&L isn't mixed with Paper Trading P&L ✅
+- **Deliverable:** multiple AI agents can trade against each other and move the internal price independently of the real market ✅ — self-trade prevention, position/cash guardrails, bilateral DB settlement (both order FKs on each trade)
 
-- Build an actual order book per symbol (price-time priority)
-- Matching Engine: limit orders rest in the book; market orders sweep it; trades generate real internal price movement
-- Decide whether Arena Mode runs on real reference prices as a _starting_ price only, then diverges based on internal supply/demand, or resets periodically to reference price
-- Separate account/leaderboard namespace so Arena P&L isn't mixed with Paper Trading P&L
-- **Deliverable:** multiple AI agents can trade against each other and move the internal price independently of the real market
+### Phase 7 — Hardening & Scale (ongoing)   ✅ DONE (base scope)
 
-### Phase 7 — Hardening & Scale (ongoing)
-
-- Introduce Kafka/Redpanda if you need multiple independent consumers of market data at scale
-- Add proper observability (structured logs, metrics on order latency, fill rates)
-- Add audit trail / immutable ledger checks (periodic reconciliation job: sum of ledger entries == account balance)
-- Load-test the Execution Engine under concurrent agent load specifically, since that's where race conditions live
+- Introduce Kafka/Redpanda if you need multiple independent consumers of market data at scale — deferred (single consumer today)
+- Add proper observability: structured JSON logging + `/api/admin/metrics` (order counters, fill-latency histogram) ✅
+- Add audit trail / immutable ledger checks: `/api/admin/reconcile` + scheduled job (sum of ledger entries == account balance) ✅
+- Load-test the Execution Engine under concurrent agent load: `tests/load-test.ts` (25 concurrent orders → no lost updates, ledger reconciles) ✅
 
 ---
 
