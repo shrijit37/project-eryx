@@ -9,7 +9,7 @@ module.exports = {
     {
       name: "eryx-api",
       cwd: APP_DIR,
-      script: "apps/api/dist/app.js",
+      script: "apps/api/dist/src/app.js",
       interpreter: "node",
       env: { NODE_ENV: "production" },
       max_restarts: 10,

@@ -40,7 +40,7 @@ export NEXT_PUBLIC_WS_URL="https://api.eryx.triptribe.info"
 bunx turbo run build --force
 
 echo "==> [6b/7] Ensuring market-data worker dependencies"
-python3 -m pip install --user --quiet asyncpg redis schedule 2>/dev/null || echo "!! worker deps install failed"
+python3 -m pip install --user --break-system-packages --quiet asyncpg redis schedule 2>/dev/null || echo "!! worker deps install failed"
 
 echo "==> [7/7] Restarting services"
 pm2 restart ecosystem.config.cjs --update-env 2>/dev/null || pm2 start ecosystem.config.cjs
