@@ -1,0 +1,26 @@
+# Shared image for the Bun-based services (api, ws-gateway, candle-worker).
+# Each service is started with `bun` directly on its TS entrypoint (matching
+# how PM2 ran them). Prisma client is generated here so the api's imports work.
+FROM oven/bun:1.4-alpine AS base
+
+WORKDIR /app
+
+# Copy workspace manifests first for layer caching
+COPY package.json bun.lock* turbo.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/ws-gateway/package.json apps/ws-gateway/
+COPY apps/candle-worker/package.json apps/candle-worker/
+COPY apps/market-data-worker/package.json apps/market-data-worker/
+COPY apps/web/package.json apps/web/
+COPY packages/ packages/
+
+# Install all workspace deps
+RUN bun install --frozen-lockfile 2>/dev/null || bun install
+
+# Prisma client: the generator never connects, but prisma.config.ts resolves the
+# datasource via env() so a (dummy) DATABASE_URL must be present.
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/project_eryx?schema=public
+RUN cd packages/db && bunx prisma generate
+
+# Copy the rest of the source
+COPY . .

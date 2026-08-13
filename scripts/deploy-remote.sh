@@ -10,44 +10,42 @@ export PATH="$HOME/.bun/bin:/usr/local/bin:/usr/bin:$PATH"
 
 cd "$APP_DIR"
 
-echo "==> [1/7] Syncing code from origin/main"
+echo "==> [1/6] Syncing code from origin/main"
 git fetch origin
 git checkout -f main
 git reset --hard origin/main
 
-echo "==> [2/7] Installing dependencies"
-bun install --frozen-lockfile 2>/dev/null || bun install
-
-echo "==> [3/7] Loading server env (.env)"
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-else
+echo "==> [2/6] Verifying server .env"
+if [[ ! -f .env ]]; then
   echo "!! .env missing on server - deploy will fail without DATABASE_URL"
+  exit 1
 fi
 
-echo "==> [4/7] Generating Prisma client + applying migrations"
-(cd packages/db && bunx prisma generate && bunx prisma migrate deploy)
+echo "==> [3/6] Building + starting Docker stack"
+docker compose up -d --build --remove-orphans
 
-echo "==> [5/7] Seeding symbols (idempotent, best-effort)"
-(cd packages/db && bunx tsx prisma/seed.ts) || echo "!! seed did not fully complete - check logs"
+echo "==> [4/6] Applying Prisma migrations + seeding"
+DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' .env)"
+if [[ -z "$DATABASE_URL" ]]; then
+  echo "!! DATABASE_URL empty in .env"
+  exit 1
+fi
+docker run --rm --network host -v "$APP_DIR":/app -w /app/packages/db \
+  -e DATABASE_URL="$DATABASE_URL" \
+  oven/bun:1.4 sh -lc 'bunx prisma migrate deploy' \
+  && echo "migrate OK"
+docker run --rm --network host -v "$APP_DIR":/app -w /app/packages/db \
+  -e DATABASE_URL="$DATABASE_URL" \
+  oven/bun:1.4 sh -lc 'bunx tsx prisma/seed.ts' \
+  || echo "!! seed did not fully complete - check logs"
 
-echo "==> [6/7] Building web + API for production"
-export NEXT_PUBLIC_API_URL="https://api.eryx.triptribe.info"
-export NEXT_PUBLIC_WS_URL="https://api.eryx.triptribe.info"
-bunx turbo run build --force
-
-echo "==> [6b/7] Ensuring market-data worker dependencies"
-python3 -m pip install --user --break-system-packages --quiet asyncpg redis schedule 2>/dev/null || echo "!! worker deps install failed"
-
-echo "==> [7/7] Restarting services"
-pm2 restart ecosystem.config.cjs --update-env 2>/dev/null || pm2 start ecosystem.config.cjs
-pm2 save
-
-echo "==> Reloading nginx"
+echo "==> [5/6] Reloading nginx"
 sudo nginx -t && sudo systemctl reload nginx
 
+echo "==> [6/6] Health checks"
+sleep 3
+curl -s -o /dev/null -w "  api :8080 -> %{http_code}\n" http://127.0.0.1:8080/ || true
+curl -s -o /dev/null -w "  web :3008 -> %{http_code}\n" http://127.0.0.1:3008/ || true
+
 echo "==> Deploy complete"
-pm2 ls | grep -E "eryx" || true
+docker ps --filter "name=eryx" --format "table {{.Names}}\t{{.Status}}"
