@@ -93,7 +93,6 @@ services:
       dockerfile: apps/Dockerfile.web
     container_name: eryx-web
     network_mode: host
-    command: ["bun", "node_modules/next/dist/bin/next", "start", "-p", "3008", "-H", "127.0.0.1"]
     restart: always
     depends_on:
       - api

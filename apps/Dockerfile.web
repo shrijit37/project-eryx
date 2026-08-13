@@ -26,5 +26,6 @@ COPY . .
 # Build only the web app (avoids building the Bun services)
 RUN cd apps/web && bun run build
 
-# Bind loopback so it is only reachable via nginx (host networking)
-CMD ["bun", "node_modules/next/dist/bin/next", "start", "-p", "3008", "-H", "127.0.0.1"]
+# Bind loopback so it is only reachable via nginx (host networking).
+# next is hoisted into apps/web/node_modules (not root), so run via the app dir.
+CMD ["sh", "-c", "cd apps/web && bun run start -p 3008 -H 127.0.0.1"]
