@@ -32,11 +32,11 @@ if [[ -z "$DATABASE_URL" ]]; then
 fi
 docker run --rm --network host -v "$APP_DIR":/app -w /app/packages/db \
   -e DATABASE_URL="$DATABASE_URL" \
-  oven/bun:1.4 sh -lc 'bunx prisma migrate deploy' \
+  oven/bun:1.3.14-alpine sh -lc 'bunx prisma migrate deploy' \
   && echo "migrate OK"
 docker run --rm --network host -v "$APP_DIR":/app -w /app/packages/db \
   -e DATABASE_URL="$DATABASE_URL" \
-  oven/bun:1.4 sh -lc 'bunx tsx prisma/seed.ts' \
+  oven/bun:1.3.14-alpine sh -lc 'bunx tsx prisma/seed.ts' \
   || echo "!! seed did not fully complete - check logs"
 
 echo "==> [5/6] Reloading nginx"
