@@ -55,20 +55,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure SSH
-        env:
-          SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          umask 077
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
       - name: Run remote deploy
-        env:
-          HOST: ${{ secrets.SERVER_HOST }}
-          USER: ${{ secrets.SERVER_USER }}
-        run: |
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh "$USER@$HOST":/tmp/deploy-eryx.sh
-          ssh -i ~/.ssh/deploy_key "$USER@$HOST" 'bash /tmp/deploy-eryx.sh'
+        uses: shrijit37/server-deploy/.github/actions/deploy-server@main
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+          ssh-host: ${{ secrets.SERVER_HOST }}
+          ssh-user: ${{ secrets.SERVER_USER }}
+          command: |
+            set -e
+            cd /home/ubuntu/projects/eryx
+            bash scripts/deploy-remote.sh
