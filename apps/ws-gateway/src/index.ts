@@ -12,7 +12,14 @@ const sub = new Redis({
   port: Number(process.env.REDIS_PORT) || 6379,
 });
 
-const httpServer = createServer();
+const httpServer = createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+  res.writeHead(404).end();
+});
 const io = new Server(httpServer);
 
 async function main() {

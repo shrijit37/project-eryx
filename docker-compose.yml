@@ -38,6 +38,22 @@ services:
     networks:
       - eryx-network
 
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.bun
+    container_name: eryx-migrate
+    working_dir: /app/packages/db
+    command: ["bunx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - eryx-network
+
   api:
     build:
       context: .
@@ -57,10 +73,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -105,6 +123,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -118,12 +138,15 @@ services:
     working_dir: /app/apps/market-data-worker
     command: ["python", "src/main.py"]
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
+      # asyncpg does not accept the ?schema=public query param Prisma adds
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx
       REDIS_HOST: redis
     restart: always
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
