@@ -121,7 +121,10 @@ function finalizeDueCandles(nowMs: number): void {
 
 async function main(): Promise<void> {
   console.log("Starting candle-worker...");
-  const sub = new Redis({ host: "localhost", port: 6379 });
+  const sub = new Redis({
+    host: process.env.REDIS_HOST || "localhost",
+    port: Number(process.env.REDIS_PORT) || 6379,
+  });
 
   await sub.ping();
   await refreshInstruments();

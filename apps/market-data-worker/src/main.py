@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 import json
 import asyncpg
@@ -8,9 +9,11 @@ import schedule
 import time
 
 async def connect_redis() -> redis.Redis:
+    host = os.environ.get("REDIS_HOST", "redis")
+    port = int(os.environ.get("REDIS_PORT", "6379"))
     return redis.Redis(
-        host="localhost",
-        port=6379,
+        host=host,
+        port=port,
         db=0,
         decode_responses=True,
     )
@@ -18,9 +21,11 @@ async def connect_redis() -> redis.Redis:
 
 async def connect_db() -> asyncpg.Connection | None:
     try:
-        return await asyncpg.connect(
+        database_url = os.environ.get(
+            "DATABASE_URL",
             "postgres://postgres:postgres@localhost:5432/project_eryx"
         )
+        return await asyncpg.connect(database_url)
     except Exception as e:
         print("Failed to connect to database", e)
         return None

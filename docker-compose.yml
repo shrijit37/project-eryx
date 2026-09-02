@@ -1,0 +1,161 @@
+# Project Eryx — production stack (Dokploy-ready).
+# Uses Docker networking instead of host networking.
+# App services reach db/redis via service names.
+# Services are only reachable through Dokploy domains / Traefik.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eryx-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: project_eryx
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d project_eryx"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - eryx-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: eryx-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - eryx-network
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.bun
+    container_name: eryx-api
+    working_dir: /app/apps/api
+    command: ["bun", "src/app.ts"]
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-ci-placeholder}
+      FINNHUB_API: ${FINNHUB_API:-}
+      TRIGGER_MS: ${TRIGGER_MS:-3000}
+      RECONCILE_MS: ${RECONCILE_MS:-900000}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - eryx-network
+
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.bun
+    container_name: eryx-ws
+    working_dir: /app/apps/ws-gateway
+    command: ["bun", "src/index.ts"]
+    environment:
+      WS_PORT: 4040
+      REDIS_HOST: redis
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4040/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - eryx-network
+
+  candle-worker:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.bun
+    container_name: eryx-candles
+    working_dir: /app/apps/candle-worker
+    command: ["bun", "src/index.ts"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
+      REDIS_HOST: redis
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eryx-network
+
+  market-data-worker:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.py
+    container_name: eryx-worker
+    working_dir: /app/apps/market-data-worker
+    command: ["python", "src/main.py"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
+      REDIS_HOST: redis
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eryx-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: https://api.eryx.triptribe.info
+        NEXT_PUBLIC_WS_URL: https://api.eryx.triptribe.info
+    container_name: eryx-web
+    restart: always
+    depends_on:
+      - api
+      - ws-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3008/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - eryx-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  eryx-network:
+    driver: bridge

@@ -13,7 +13,9 @@ let redis: Redis | null = null;
 /** Lazily-initialized singleton ioredis client for the API process. */
 export function getRedis(): Redis {
   if (!redis) {
-    redis = new Redis({ host: "localhost", port: 6379 });
+    const host = process.env.REDIS_HOST || "localhost";
+    const port = Number(process.env.REDIS_PORT) || 6379;
+    redis = new Redis({ host, port });
     redis.on("error", (err) => console.error("[redis] error", err.message));
   }
   return redis;

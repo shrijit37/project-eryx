@@ -1,5 +1,5 @@
 # Market-data worker (Python, requires >=3.14 per pyproject.toml).
-# Uses host networking at runtime so its hardcoded localhost:5432 DB ref works.
+# Uses Docker networking at runtime; connects to db/redis via service names.
 FROM python:3.14-slim
 
 WORKDIR /app/apps/market-data-worker
