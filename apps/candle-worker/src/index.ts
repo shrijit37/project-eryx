@@ -1,4 +1,5 @@
 import { Redis } from "ioredis";
+import { createServer } from "http";
 import { prisma } from "@project-eryx/db";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
@@ -119,12 +120,51 @@ function finalizeDueCandles(nowMs: number): void {
   }
 }
 
+// Uniform fleet health contract: exactly GET /health ->
+// { status, service, version, checks }. Serves on HEALTH_PORT (default
+// 4100) so the worker stays observable without a public domain.
+function serveHealth(sub: Redis): void {
+  const port = Number(process.env.HEALTH_PORT) || 4100;
+  createServer(async (req, res) => {
+    if (req.url !== "/health") {
+      res.writeHead(404).end();
+      return;
+    }
+    let database: "up" | "down" = "down";
+    let redis: "up" | "down" = "down";
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      database = "up";
+    } catch {
+      database = "down";
+    }
+    try {
+      await sub.ping();
+      redis = "up";
+    } catch {
+      redis = "down";
+    }
+    const status = database === "up" && redis === "up" ? "ok" : "down";
+    res.writeHead(status === "down" ? 503 : 200, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status,
+        service: "eryx-candles",
+        version: process.env.APP_VERSION || "unknown",
+        checks: { database, redis },
+      }),
+    );
+  }).listen(port, () => console.log(`[candle-worker] health on ${port}`));
+}
+
 async function main(): Promise<void> {
   console.log("Starting candle-worker...");
   const sub = new Redis({
     host: process.env.REDIS_HOST || "localhost",
     port: Number(process.env.REDIS_PORT) || 6379,
   });
+
+  serveHealth(sub);
 
   await sub.ping();
   await refreshInstruments();

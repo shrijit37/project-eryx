@@ -1,9 +1,19 @@
-# Shared image for the Bun-based services (api, ws-gateway, candle-worker).
-# Each service is started with `bun` directly on its TS entrypoint (matching
-# how PM2 ran them). Prisma client is generated here so the api's imports work.
-FROM oven/bun:1.3.14-alpine AS base
+# Project Eryx — one image per Bun service (api, ws-gateway, candle-worker).
+# Built ONLY in GitHub Actions (never on the server) and pushed to GHCR;
+# Dokploy pulls by SHA tag. SERVICE/ENTRY select the app:
+#   api          -> apps/api/src/app.ts (PORT 8080, GET /health)
+#   ws-gateway   -> apps/ws-gateway/src/index.ts (WS_PORT 4040, GET /health)
+#   candle-worker-> apps/candle-worker/src/index.ts (HEALTH_PORT 4100)
+# Prisma client is generated here so the api/candle imports work.
+ARG SERVICE=api
+ARG ENTRY=src/app.ts
+FROM oven/bun:1.4-alpine AS base
 
+# Re-declare: a pre-FROM ARG is out of scope for ENV without this.
+ARG SERVICE
+ARG ENTRY
 WORKDIR /app
+ENV SERVICE=${SERVICE} ENTRY=${ENTRY}
 
 # Copy workspace manifests first for layer caching
 COPY package.json bun.lock* turbo.json tsconfig.base.json ./
@@ -15,7 +25,7 @@ COPY apps/web/package.json apps/web/
 COPY packages/ packages/
 
 # Install all workspace deps
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+RUN bun install --frozen-lockfile
 
 # Prisma client: the generator never connects, but prisma.config.ts resolves the
 # datasource via env() so a (dummy) DATABASE_URL must be present.
@@ -24,3 +34,7 @@ RUN cd packages/db && bunx prisma generate
 
 # Copy the rest of the source
 COPY . .
+
+# Each service runs straight off its TS entrypoint (as PM2 ran them).
+# sh -c so the runtime env (PORT, APP_VERSION, ...) is honoured per app.
+CMD ["sh", "-c", "cd apps/${SERVICE} && bun ${ENTRY}"]

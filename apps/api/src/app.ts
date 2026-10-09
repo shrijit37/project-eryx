@@ -70,25 +70,30 @@ const connectRedis = async () => {
 };
 
 // ----- routes -----
-app.get("/api/health", async (_req, res) => {
-  const health = { database: false, redis: false };
+// Uniform fleet health contract (standards/platform.md#health): exactly
+// GET /health -> { status, service, version, checks }. Postgres and Redis
+// are both critical: either down means 503. No /api/health alias.
+app.get("/health", async (_req, res) => {
+  let database: "up" | "down" = "down";
+  let redis: "up" | "down" = "down";
   try {
     await prisma.$queryRaw`SELECT 1`;
-    health.database = true;
+    database = "up";
   } catch (e: any) {
     log.error({ err: e?.message }, "health db failed");
   }
   try {
     await getRedis().ping();
-    health.redis = true;
+    redis = "up";
   } catch (e: any) {
     log.error({ err: e?.message }, "health redis failed");
   }
-  const healthy = health.database && health.redis;
-  res.status(healthy ? 200 : 503).json({
-    status: healthy ? "healthy" : "unhealthy",
-    services: health,
-    timestamp: new Date().toISOString(),
+  const status = database === "up" && redis === "up" ? "ok" : "down";
+  res.status(status === "down" ? 503 : 200).json({
+    status,
+    service: "eryx-api",
+    version: process.env.APP_VERSION || "unknown",
+    checks: { database, redis },
   });
 });
 

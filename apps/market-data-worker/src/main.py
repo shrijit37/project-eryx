@@ -1,12 +1,56 @@
 import asyncio
 import os
+import threading
 import time
 import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import asyncpg
 import redis.asyncio as redis
 import yfinance as yf
 import schedule
 import time
+
+# Last-known dependency state, refreshed by the main loop. The /health
+# handler reports "down" for any dependency not confirmed within the
+# staleness window, so a wedged loop fails the probe truthfully.
+_last_ok = {"database": 0.0, "redis": 0.0}
+_STALE_AFTER_S = 180.0
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/health":
+            self.send_response(404)
+            self.end_headers()
+            return
+        now = time.monotonic()
+        checks = {
+            name: ("up" if now - ts < _STALE_AFTER_S else "down")
+            for name, ts in _last_ok.items()
+        }
+        status = "ok" if all(v == "up" for v in checks.values()) else "down"
+        body = json.dumps({
+            "status": status,
+            "service": "eryx-marketdata",
+            "version": os.environ.get("APP_VERSION", "unknown"),
+            "checks": checks,
+        }).encode()
+        self.send_response(200 if status == "ok" else 503)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+def _serve_health():
+    port = int(os.environ.get("HEALTH_PORT", "4200"))
+    HTTPServer(("0.0.0.0", port), _HealthHandler).serve_forever()
+
+
+threading.Thread(target=_serve_health, daemon=True).start()
 
 async def connect_redis() -> redis.Redis:
     host = os.environ.get("REDIS_HOST", "redis")
@@ -160,6 +204,8 @@ async def main():
             itr += 1
 
             stocks = await get_stocks(pg)
+            _last_ok["database"] = time.monotonic()
+            _last_ok["redis"] = time.monotonic()
             for stock in stocks:
                 symbol = stock["symbol"]
                 exchange = stock["exchange"]

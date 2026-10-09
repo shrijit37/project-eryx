@@ -1,13 +1,29 @@
-# Project Eryx — production stack (Dokploy-ready).
-# Uses Docker networking instead of host networking.
-# App services reach db/redis via service names.
-# Services are only reachable through Dokploy domains / Traefik.
+# Project Eryx — LOCAL DEVELOPMENT compose.
+#
+# Production does NOT use this file: images are built ONLY in GitHub
+# Actions, pushed to GHCR by SHA tag, and Dokploy runs them as five
+# applications (eryx-api, eryx-ws, eryx-candles, eryx-marketdata, eryx-web)
+# against the shared Postgres/Redis with Infisical vault-ref env.
+# (fleet rule: no server builds, no local databases in prod.)
+#
+# Here, `db`/`redis` are dev-only conveniences (PG18/Redis 8 to mirror
+# prod), and app services build locally for iteration. Copy .env.example
+# to .env before `docker compose up --build`.
+#
+# Production topology (Dokploy applications):
+#   eryx-api         ghcr.io/shrijit37/project-eryx-api:<sha>         PORT 8080
+#     -> https://api.project-eryx.shrijit.tech        (GET /health)
+#   eryx-ws          ghcr.io/shrijit37/project-eryx-ws:<sha>          WS_PORT 4040
+#     -> wss://ws.project-eryx.shrijit.tech           (GET /health)
+#   eryx-candles     ghcr.io/shrijit37/project-eryx-candles:<sha>     HEALTH_PORT 4100 (internal)
+#   eryx-marketdata  ghcr.io/shrijit37/project-eryx-marketdata:<sha>  HEALTH_PORT 4200 (internal)
+#   eryx-web         ghcr.io/shrijit37/project-eryx-web:<sha>         PORT 3008
+#     -> https://project-eryx.shrijit.tech            (GET /health)
 
 services:
   db:
-    image: postgres:16-alpine
-    container_name: eryx-postgres
-    restart: always
+    image: postgres:18-alpine
+    container_name: eryx-postgres-dev
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -24,9 +40,8 @@ services:
       - eryx-network
 
   redis:
-    image: redis:7-alpine
-    container_name: eryx-redis
-    restart: always
+    image: redis:8-alpine
+    container_name: eryx-redis-dev
     volumes:
       - redis_data:/data
     healthcheck:
@@ -42,7 +57,10 @@ services:
     build:
       context: .
       dockerfile: apps/Dockerfile.bun
-    container_name: eryx-migrate
+      args:
+        SERVICE: api
+        ENTRY: src/app.ts
+    container_name: eryx-migrate-dev
     working_dir: /app/packages/db
     command: ["bunx", "prisma", "migrate", "deploy"]
     environment:
@@ -58,7 +76,10 @@ services:
     build:
       context: .
       dockerfile: apps/Dockerfile.bun
-    container_name: eryx-api
+      args:
+        SERVICE: api
+        ENTRY: src/app.ts
+    container_name: eryx-api-dev
     working_dir: /app/apps/api
     command: ["bun", "src/app.ts"]
     environment:
@@ -78,7 +99,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -90,7 +111,10 @@ services:
     build:
       context: .
       dockerfile: apps/Dockerfile.bun
-    container_name: eryx-ws
+      args:
+        SERVICE: ws-gateway
+        ENTRY: src/index.ts
+    container_name: eryx-ws-dev
     working_dir: /app/apps/ws-gateway
     command: ["bun", "src/index.ts"]
     environment:
@@ -101,7 +125,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4040/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4040/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -113,12 +137,16 @@ services:
     build:
       context: .
       dockerfile: apps/Dockerfile.bun
-    container_name: eryx-candles
+      args:
+        SERVICE: candle-worker
+        ENTRY: src/index.ts
+    container_name: eryx-candles-dev
     working_dir: /app/apps/candle-worker
     command: ["bun", "src/index.ts"]
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx?schema=public
       REDIS_HOST: redis
+      HEALTH_PORT: 4100
     restart: always
     depends_on:
       db:
@@ -127,6 +155,12 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - eryx-network
 
@@ -134,13 +168,14 @@ services:
     build:
       context: .
       dockerfile: apps/Dockerfile.py
-    container_name: eryx-worker
+    container_name: eryx-worker-dev
     working_dir: /app/apps/market-data-worker
     command: ["python", "src/main.py"]
     environment:
       # asyncpg does not accept the ?schema=public query param Prisma adds
       DATABASE_URL: postgresql://postgres:postgres@db:5432/project_eryx
       REDIS_HOST: redis
+      HEALTH_PORT: 4200
     restart: always
     depends_on:
       db:
@@ -149,6 +184,12 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/health')\" || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     networks:
       - eryx-network
 
@@ -157,15 +198,15 @@ services:
       context: .
       dockerfile: apps/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: https://api.eryx.triptribe.info
-        NEXT_PUBLIC_WS_URL: https://api.eryx.triptribe.info
-    container_name: eryx-web
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:4040}
+    container_name: eryx-web-dev
     restart: always
     depends_on:
       - api
       - ws-gateway
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3008/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3008/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -12,10 +12,28 @@ const sub = new Redis({
   port: Number(process.env.REDIS_PORT) || 6379,
 });
 
-const httpServer = createServer((req, res) => {
+// Uniform fleet health contract: exactly GET /health ->
+// { status, service, version, checks }. Redis is the critical dependency
+// (the gateway only relays pub/sub): down means 503.
+const httpServer = createServer(async (req, res) => {
   if (req.url === "/health") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    let redis: "up" | "down" = "down";
+    try {
+      await sub.ping();
+      redis = "up";
+    } catch {
+      redis = "down";
+    }
+    const status = redis === "up" ? "ok" : "down";
+    res.writeHead(status === "down" ? 503 : 200, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status,
+        service: "eryx-ws",
+        version: process.env.APP_VERSION || "unknown",
+        checks: { redis },
+      }),
+    );
     return;
   }
   res.writeHead(404).end();
