@@ -4,7 +4,7 @@
 # GET /health contract; the public gates (api, web) check status+version.
 #
 # Required GitHub config:
-#   vars.INFISICAL_IDENTITY_ID / vars.INFISICAL_DOMAIN / vars.INFISICAL_PROJECT_SLUG (org)
+#   vars.INFISICAL_IDENTITY_ID / vars.INFISICAL_DOMAIN / vars.INFISICAL_PROJECT_SLUG (repo)
 #   vars.DOKPLOY_URL (org), secrets.DOKPLOY_API_KEY (repo)
 #   secrets.GHCR_PULL_TOKEN (repo, long-lived read:packages — never GITHUB_TOKEN)
 #   vars.DOKPLOY_API_ID / _WS_ID / _CANDLES_ID / _MARKETDATA_ID / _WEB_ID (repo)
