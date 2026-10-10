@@ -29,7 +29,7 @@ project-eryx/
 ├── progress.md                      # ← this file
 ├── package.json / turbo.json / tsconfig.base.json / bun.lock
 ├── docker-compose.yaml / Dockerfile # postgres (5432) + redis (6379)
-├── .env                             # JWT_SECRET, DATABASE_URL, PORT, WS_PORT
+├── .env                             # DATABASE_URL, AUTH_URL, PORT, WS_PORT
 ├── apps/
 │   ├── api/                         # Express 5 + TypeScript API (port 8080)
 │   │   ├── src/

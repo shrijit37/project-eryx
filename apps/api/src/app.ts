@@ -1,7 +1,6 @@
 import express from "express";
 import { rateLimit, MINUTE } from "express-rate-limit";
 import { prisma } from "@project-eryx/db";
-import authRouter from "./modules/auth/auth.routes";
 import orderRouter from "./modules/order/order.routes";
 import accountRouter from "./modules/account/account.routes";
 import agentRouter from "./modules/agent/agent.routes";
@@ -19,7 +18,7 @@ import { startOrderTriggerLoop } from "./modules/order/order.trigger";
 const log = childLogger("app");
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
-const envVariables = ["JWT_SECRET", "DATABASE_URL"];
+const envVariables = ["DATABASE_URL"];
 
 envVariables.forEach((key) => {
   if (!process.env[key]) {
@@ -40,12 +39,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(limiter);
 app.use(
-  // Permissive CORS for local dev (the Next.js dashboard is on a separate origin).
-  (_req: express.Request, res: express.Response, next: express.NextFunction) => {
-    res.header("Access-Control-Allow-Origin", "*");
+  // Reflect the caller's origin and allow credentials: the browser now sends
+  // the `.shrijit.tech` auth cookie instead of a Bearer token, and browsers
+  // reject `*` whenever a request is made with credentials included.
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.header("Access-Control-Allow-Origin", req.headers.origin ?? "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Vary", "Origin");
     res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-API-Key");
-    if (_req.method === "OPTIONS") return res.sendStatus(204);
+    res.header("Access-Control-Allow-Headers", "Content-Type,X-API-Key");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
   }
 );
@@ -94,8 +97,6 @@ app.get("/health", async (_req, res) => {
     checks: { database, redis },
   });
 });
-
-app.use("/api/auth", authRouter);
 
 app.use("/api/orders", authenticateToken, orderRouter);
 app.use("/api/account", authenticateToken, accountRouter);

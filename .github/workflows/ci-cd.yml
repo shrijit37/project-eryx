@@ -8,8 +8,8 @@
 #   vars.DOKPLOY_URL (org), secrets.DOKPLOY_API_KEY (repo)
 #   secrets.GHCR_PULL_TOKEN (repo, long-lived read:packages — never GITHUB_TOKEN)
 #   vars.DOKPLOY_API_ID / _WS_ID / _CANDLES_ID / _MARKETDATA_ID / _WEB_ID (repo)
-#   ERYX_* keys (ERYX_DATABASE_URL[_EXTERNAL], ERYX_JWT_SECRET,
-#     ERYX_FINNHUB_API_KEY) live in the Infisical prod project
+#   ERYX_* keys (ERYX_DATABASE_URL[_EXTERNAL], ERYX_FINNHUB_API_KEY)
+#     live in the Infisical prod project
 #   vars.REDIS_HOST / vars.REDIS_PORT (repo; shared Redis internal endpoint,
 #     not a secret — Dokploy apps reach it over the private network)
 #   vars.API_URL = https://api.project-eryx.shrijit.tech
@@ -63,6 +63,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: https://api.project-eryx.shrijit.tech
           NEXT_PUBLIC_WS_URL: wss://ws.project-eryx.shrijit.tech
+          NEXT_PUBLIC_AUTH_URL: https://auth.shrijit.tech
 
       - name: Validate Docker Compose (dev file)
         run: docker compose config -q
@@ -201,13 +202,12 @@ jobs:
               echo "REDIS_PORT=$REDIS_PORT"
               echo "REDIS_PASSWORD=${DOL}{{vault.infisical-prod.ERYX_REDIS_PASSWORD}}"
               echo "APP_VERSION=$APP_VERSION"
-              # JWT_SECRET/FINNHUB_API_KEY are REQUIRED by the api process
-              # (app.ts exits 1 without JWT_SECRET); they travel as vault
-              # refs like DATABASE_URL so the crash-loop cannot recur.
+              # FINNHUB_API is REQUIRED by the api process; it travels as a
+              # vault ref like DATABASE_URL so the crash-loop cannot recur.
               case "$name" in
                 api)
                   echo "PORT=8080"
-                  echo "JWT_SECRET=${DOL}{{vault.infisical-prod.ERYX_JWT_SECRET}}"
+                  echo "AUTH_URL=https://auth.shrijit.tech"
                   echo "FINNHUB_API=${DOL}{{vault.infisical-prod.ERYX_FINNHUB_API_KEY}}"
                   ;;
                 ws) echo "WS_PORT=4040" ;;

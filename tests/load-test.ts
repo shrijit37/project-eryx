@@ -18,22 +18,14 @@ async function j(url: string, init?: RequestInit) {
   return res.json();
 }
 
-async function main() {
-  const stamp = Date.now();
-  const email = `load_${stamp}@test.com`;
+// Identity is the shared auth service: copy the `.shrijit.tech` session
+// cookie out of a signed-in browser devtools panel and export it here.
+const COOKIE = process.env.SESSION_COOKIE;
+if (!COOKIE) throw new Error("export SESSION_COOKIE='better-auth.session_token=...'");
+const AUTH = { Cookie: COOKIE };
 
-  await j("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password: "password123", username: `load_${stamp}` }),
-  });
-  const login = await j("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password: "password123" }),
-  });
-  const token: string = login.token;
-  const accts = await j("/api/account", { headers: { Authorization: `Bearer ${token}` } });
+async function main() {
+  const accts = await j("/api/account", { headers: AUTH });
   const accountId: string = accts.data[0].id;
   const initialCash: number = accts.data[0].cash_balance;
 
@@ -44,7 +36,7 @@ async function main() {
     Array.from({ length: CONCURRENCY }, () =>
       fetch(`${BASE}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({
           account_id: accountId,
           symbol: SYMBOL,
@@ -58,7 +50,7 @@ async function main() {
   const elapsed = Math.round(performance.now() - t0);
 
   const filled = results.filter((s) => s === 201).length;
-  const detail = await j(`/api/account/${accountId}`, { headers: { Authorization: `Bearer ${token}` } });
+  const detail = await j(`/api/account/${accountId}`, { headers: AUTH });
   const pos = detail.data.positions.find((p: any) => p.symbol === SYMBOL);
   const held = pos?.quantity ?? 0;
   const cash = detail.data.cash_balance;

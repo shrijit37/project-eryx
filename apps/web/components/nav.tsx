@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { getToken, clearToken } from "@/lib/api";
+import { getSession, signOut } from "@/lib/auth-client";
 import { LayoutDashboard, CandlestickChart, Trophy, Bot, LogOut } from "lucide-react";
 
 const links = [
@@ -20,11 +20,11 @@ export function Nav() {
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    setAuthed(Boolean(getToken()));
+    getSession().then(({ data }) => setAuthed(Boolean(data?.user)));
   }, []);
 
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    await signOut();
     setAuthed(false);
     router.push("/auth");
   };

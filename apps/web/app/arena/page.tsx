@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { agentApi, api, API_URL, setToken, getToken } from "@/lib/api";
+import { agentApi, api, API_URL } from "@/lib/api";
 
 interface BookLevel { price: number; qty: number }
 interface Book {

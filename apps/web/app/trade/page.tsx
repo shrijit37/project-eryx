@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { api, getToken } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getSession } from "@/lib/auth-client";
 
 interface Account {
   id: string;
@@ -62,7 +63,7 @@ export default function TradePage() {
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
-    if (!getToken()) return router.push("/auth");
+    getSession().then(({ data }) => { if (!data?.user) router.push("/auth"); });
     setAuthed(true);
   }, [router]);
 

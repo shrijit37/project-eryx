@@ -1,6 +1,6 @@
 // PM2 process definitions for Project Eryx.
 // Loaded from the repo root on the server (deployed under ~/projects/eryx).
-// Secrets (DATABASE_URL, JWT_SECRET, ...) are read from the repo-root `.env`,
+// Secrets (DATABASE_URL, AUTH_URL, ...) are read from the repo-root `.env`,
 // which lives only on the server and is never committed.
 const APP_DIR = "/home/ubuntu/projects/eryx";
 

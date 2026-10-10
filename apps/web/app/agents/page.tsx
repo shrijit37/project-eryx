@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, getToken, API_URL } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
+import { getSession } from "@/lib/auth-client";
 
 interface AgentRow {
   id: string;
@@ -23,7 +24,7 @@ export default function AgentsPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getToken()) return router.push("/auth");
+    getSession().then(({ data }) => { if (!data?.user) router.push("/auth"); });
     void load();
   }, [router]);
 
