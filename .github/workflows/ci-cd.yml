@@ -8,7 +8,8 @@
 #   vars.DOKPLOY_URL (org), secrets.DOKPLOY_API_KEY (repo)
 #   secrets.GHCR_PULL_TOKEN (repo, long-lived read:packages — never GITHUB_TOKEN)
 #   vars.DOKPLOY_API_ID / _WS_ID / _CANDLES_ID / _MARKETDATA_ID / _WEB_ID (repo)
-#   vars.INFISCAL prefix: ERYX (ERYX_DATABASE_URL[_EXTERNAL] in Infisical prod)
+#   ERYX_* keys (ERYX_DATABASE_URL[_EXTERNAL], ERYX_JWT_SECRET,
+#     ERYX_FINNHUB_API_KEY) live in the Infisical prod project
 #   vars.REDIS_HOST / vars.REDIS_PORT (repo; shared Redis internal endpoint,
 #     not a secret — Dokploy apps reach it over the private network)
 #   vars.API_URL = https://api.project-eryx.shrijit.tech
