@@ -58,6 +58,7 @@ async def connect_redis() -> redis.Redis:
     return redis.Redis(
         host=host,
         port=port,
+        password=os.environ.get("REDIS_PASSWORD") or None,
         db=0,
         decode_responses=True,
     )

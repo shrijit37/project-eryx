@@ -199,6 +199,7 @@ jobs:
               echo "DATABASE_URL=${DOL}{{vault.infisical-prod.ERYX_DATABASE_URL}}"
               echo "REDIS_HOST=$REDIS_HOST"
               echo "REDIS_PORT=$REDIS_PORT"
+              echo "REDIS_PASSWORD=${DOL}{{vault.infisical-prod.ERYX_REDIS_PASSWORD}}"
               echo "APP_VERSION=$APP_VERSION"
               # JWT_SECRET/FINNHUB_API_KEY are REQUIRED by the api process
               # (app.ts exits 1 without JWT_SECRET); they travel as vault

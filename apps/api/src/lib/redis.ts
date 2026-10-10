@@ -15,7 +15,7 @@ export function getRedis(): Redis {
   if (!redis) {
     const host = process.env.REDIS_HOST || "localhost";
     const port = Number(process.env.REDIS_PORT) || 6379;
-    redis = new Redis({ host, port });
+    redis = new Redis({ host, port, password: process.env.REDIS_PASSWORD || undefined });
     redis.on("error", (err) => console.error("[redis] error", err.message));
   }
   return redis;

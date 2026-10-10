@@ -11,6 +11,7 @@ const WS_PORT = Number(process.env.WS_PORT);
 const sub = new Redis({
   host: process.env.REDIS_HOST || "localhost",
   port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD || undefined,
 });
 
 // Uniform fleet health contract: exactly GET /health ->
