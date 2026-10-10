@@ -1,5 +1,5 @@
 # Use the official lightweight PostgreSQL image
-FROM postgres:16-alpine
+FROM postgres:18-alpine
 
 # Set default environment variables for PostgreSQL
 ENV POSTGRES_USER=postgres
