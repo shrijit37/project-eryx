@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 import { Server } from "socket.io";
 import { createServer } from "http";
 
-dotenv.config({ path: "../../.env" });
+// Loads ../../.env for local dev only; never overrides real env.
+dotenv.config({ path: "../../.env", override: false });
 
 const WS_PORT = Number(process.env.WS_PORT);
 

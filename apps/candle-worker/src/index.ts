@@ -4,7 +4,8 @@ import { prisma } from "@project-eryx/db";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 
-dotenv.config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
+// Loads repo .env for local dev only; never overrides real env.
+dotenv.config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)), override: false });
 
 const TIMEFRAMES = [
   { name: "1m", sec: 60 },

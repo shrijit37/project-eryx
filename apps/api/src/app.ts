@@ -1,5 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config();
 import express from "express";
 import { rateLimit, MINUTE } from "express-rate-limit";
 import { prisma } from "@project-eryx/db";
