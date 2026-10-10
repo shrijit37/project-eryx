@@ -199,8 +199,15 @@ jobs:
               echo "REDIS_HOST=$REDIS_HOST"
               echo "REDIS_PORT=$REDIS_PORT"
               echo "APP_VERSION=$APP_VERSION"
+              # JWT_SECRET/FINNHUB_API_KEY are REQUIRED by the api process
+              # (app.ts exits 1 without JWT_SECRET); they travel as vault
+              # refs like DATABASE_URL so the crash-loop cannot recur.
               case "$name" in
-                api) echo "PORT=8080" ;;
+                api)
+                  echo "PORT=8080"
+                  echo "JWT_SECRET=${DOL}{{vault.infisical-prod.ERYX_JWT_SECRET}}"
+                  echo "FINNHUB_API=${DOL}{{vault.infisical-prod.ERYX_FINNHUB_API_KEY}}"
+                  ;;
                 ws) echo "WS_PORT=4040" ;;
                 candles) echo "HEALTH_PORT=4100" ;;
                 marketdata) echo "HEALTH_PORT=4200" ;;
