@@ -4,12 +4,12 @@
 # GET /health contract; the public gates (api, web) check status+version.
 #
 # Required GitHub config:
-#   vars.INFISICAL_IDENTITY_ID / vars.INFISICAL_DOMAIN / vars.INFISICAL_PROJECT_SLUG (repo)
+#   secrets.DOPPLER_TOKEN (repo; read-only service token, Doppler platform/prd)
 #   vars.DOKPLOY_URL (org), secrets.DOKPLOY_API_KEY (repo)
 #   secrets.GHCR_PULL_TOKEN (repo, long-lived read:packages — never GITHUB_TOKEN)
 #   vars.DOKPLOY_API_ID / _WS_ID / _CANDLES_ID / _MARKETDATA_ID / _WEB_ID (repo)
 #   ERYX_* keys (ERYX_DATABASE_URL[_EXTERNAL], ERYX_FINNHUB_API_KEY)
-#     live in the Infisical prod project
+#     live in Doppler `platform`/`prd`
 #   vars.REDIS_HOST / vars.REDIS_PORT (repo; shared Redis internal endpoint,
 #     not a secret — Dokploy apps reach it over the private network)
 #   vars.API_URL = https://api.project-eryx.shrijit.tech
@@ -75,7 +75,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
     strategy:
       matrix:
         include:
@@ -154,19 +153,19 @@ jobs:
     environment: prod
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-      - name: Fetch database URL from Infisical (OIDC)
-        uses: infisical/secrets-action@v1.0.18
-        with:
-          method: oidc
-          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
-          domain: ${{ vars.INFISICAL_DOMAIN }}
-          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
-          env-slug: prod
-          secret-name: ERYX_DATABASE_URL_EXTERNAL
+      - uses: dopplerhq/cli-action@v4
+      - name: Fetch database URL from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          val=$(doppler secrets get ERYX_DATABASE_URL_EXTERNAL --plain --silent)
+          [ -n "$val" ] || { echo "ERYX_DATABASE_URL_EXTERNAL empty in Doppler" >&2; exit 1; }
+          echo "::add-mask::$val"
+          echo "ERYX_DATABASE_URL_EXTERNAL=$val" >> "$GITHUB_ENV"
       - name: Install dependencies (prisma CLI for migrations)
         run: bun install --frozen-lockfile
       - name: Run migrations
@@ -197,10 +196,10 @@ jobs:
           for name in $APP_NAMES; do
             i=$((i+1)); id=$(echo "$APP_IDS" | cut -d' ' -f"$i")
             {
-              echo "DATABASE_URL=${DOL}{{vault.infisical-prod.ERYX_DATABASE_URL}}"
+              echo "DATABASE_URL=${DOL}{{vault.doppler-prod.ERYX_DATABASE_URL}}"
               echo "REDIS_HOST=$REDIS_HOST"
               echo "REDIS_PORT=$REDIS_PORT"
-              echo "REDIS_PASSWORD=${DOL}{{vault.infisical-prod.ERYX_REDIS_PASSWORD}}"
+              echo "REDIS_PASSWORD=${DOL}{{vault.doppler-prod.ERYX_REDIS_PASSWORD}}"
               echo "APP_VERSION=$APP_VERSION"
               # FINNHUB_API is REQUIRED by the api process; it travels as a
               # vault ref like DATABASE_URL so the crash-loop cannot recur.
@@ -208,7 +207,7 @@ jobs:
                 api)
                   echo "PORT=8080"
                   echo "AUTH_URL=https://auth.shrijit.tech"
-                  echo "FINNHUB_API=${DOL}{{vault.infisical-prod.ERYX_FINNHUB_API_KEY}}"
+                  echo "FINNHUB_API=${DOL}{{vault.doppler-prod.ERYX_FINNHUB_API_KEY}}"
                   ;;
                 ws) echo "WS_PORT=4040" ;;
                 candles) echo "HEALTH_PORT=4100" ;;
