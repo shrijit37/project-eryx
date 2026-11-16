@@ -3,7 +3,7 @@
 # Production does NOT use this file: images are built ONLY in GitHub
 # Actions, pushed to GHCR by SHA tag, and Dokploy runs them as five
 # applications (eryx-api, eryx-ws, eryx-candles, eryx-marketdata, eryx-web)
-# against the shared Postgres/Redis with Infisical vault-ref env.
+# against the shared Postgres/Redis with Doppler vault-ref env.
 # (fleet rule: no server builds, no local databases in prod.)
 #
 # Here, `db`/`redis` are dev-only conveniences (PG18/Redis 8 to mirror
