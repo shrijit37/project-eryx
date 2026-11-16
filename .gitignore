@@ -42,3 +42,6 @@ yarn-error.log*
 #python
 
 apps/market-data-worker/src/__pycache__/
+
+# dotenvx-encrypted env — safe to commit; private key lives in GitHub Actions
+!.env.production

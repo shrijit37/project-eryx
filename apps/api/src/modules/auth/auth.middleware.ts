@@ -84,6 +84,21 @@ async function upsertUser(authUser: AuthUser): Promise<string> {
   return user.id;
 }
 
+/** Project Eryx is an org on the shared auth service: a valid session alone is
+ *  not entry. Membership self-joins on first visit (open signup); false only
+ *  when the hub is unreachable, the org is unseeded, or Eryx later flips to
+ *  invite-only. */
+async function ensureMembership(cookie: string): Promise<boolean> {
+  const call = (path: string, init?: RequestInit) =>
+    fetch(`${AUTH_URL}${path}`, { ...init, headers: { cookie }, signal: AbortSignal.timeout(5_000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+  const member = await call("/api/orgs/eryx/member");
+  if (member?.member) return true;
+  const joined = await call("/api/orgs/eryx/join", { method: "POST" });
+  return Boolean(joined?.member);
+}
+
 async function userIdForCookie(cookie: string): Promise<string | null> {
   if (cache && cache.cookie === cookie && Date.now() - cache.at < CACHE_MS) {
     return cache.userId;
@@ -95,6 +110,7 @@ async function userIdForCookie(cookie: string): Promise<string | null> {
   if (!res.ok) return null;
   const body = (await res.json()) as { user?: AuthUser } | null;
   if (!body?.user?.id) return null;
+  if (!(await ensureMembership(cookie))) return null;
 
   const userId = await upsertUser(body.user);
   cache = { cookie, userId, at: Date.now() };

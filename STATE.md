@@ -24,9 +24,9 @@ mutations are paper-mode unless the owner wires real keys.
 | redis | `sMPEAyMCZPEjnKF27kW9N` (redis:8-alpine) | internal only | via api/ws checks |
 
 Images: `ghcr.io/shrijit37/project-eryx-{api,ws,candles,marketdata,web}:<sha>`,
-multi-arch, built on GH Actions only. Secrets from Infisical prod
-(`ERYX_DATABASE_URL[_EXTERNAL]`, `ERYX_FINNHUB_API_KEY`,
-`ERYX_REDIS_PASSWORD`, vault `infisical-prod` assigned to the eryx env).
+multi-arch, built on GH Actions only. Secrets from Doppler
+(`platform`/`prd`: `ERYX_DATABASE_URL[_EXTERNAL]`, `ERYX_FINNHUB_API_KEY`,
+`ERYX_REDIS_PASSWORD`; vault `doppler-prod` assigned to the eryx env).
 DNS A records for `project-eryx`, `api.project-eryx`, `ws.project-eryx`
 → 130.210.29.215. No `ws.project-eryx` before this migration (new).
 Local `docker-compose.yml` (postgres:18-alpine, redis:8-alpine, no
@@ -48,7 +48,7 @@ secret → `redis.update` + `redis.deploy` → wait for container
 restart → re-assert app env → redeploy apps, in that order.
 
 ## Needs owner keys
-| Infisical key | Powers | Effect when placeholder |
+| Doppler key | Powers | Effect when placeholder |
 |---|---|---|
 | `ERYX_FINNHUB_API_KEY` (`REPLACE_ME_OWNER`) | live quotes/fundamentals | workers fall back to yfinance-only |
 | ~~`ERYX_JWT_SECRET`~~ | removed: identity is now the shared auth service (`auth.shrijit.tech`), the browser holds the `.shrijit.tech` session cookie |
