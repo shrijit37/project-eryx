@@ -85,7 +85,10 @@ app.get("/health", async (_req, res) => {
     log.error({ err: e?.message }, "health db failed");
   }
   try {
-    await getRedis().ping();
+    await Promise.race([
+      getRedis().ping(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("redis timeout")), 1500)),
+    ]);
     redis = "up";
   } catch (e: any) {
     log.error({ err: e?.message }, "health redis failed");
