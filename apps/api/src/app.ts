@@ -1,6 +1,6 @@
 import express from "express";
 import { rateLimit, MINUTE } from "express-rate-limit";
-import { prisma } from "@project-eryx/db";
+import { supabase, checkSupabase } from "./lib/supabase";
 import orderRouter from "./modules/order/order.routes";
 import accountRouter from "./modules/account/account.routes";
 import agentRouter from "./modules/agent/agent.routes";
@@ -18,7 +18,10 @@ import { startOrderTriggerLoop } from "./modules/order/order.trigger";
 const log = childLogger("app");
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
-const envVariables = ["DATABASE_URL"];
+// Bun/Node listen on all interfaces explicitly; Coolify healthchecks probe
+// the container IP, not just the loopback interface.
+const HOST = process.env.HOST || "0.0.0.0";
+const envVariables = ["SUPABASE_URL", "SUPABASE_SECRET_KEY"];
 
 envVariables.forEach((key) => {
   if (!process.env[key]) {
@@ -54,12 +57,9 @@ app.use(
 );
 
 const connectDb = async () => {
-  try {
-    await prisma.$connect();
-    log.info({}, "db connected");
-  } catch (e: any) {
-    log.error({ err: e?.message }, "error connecting to db");
-  }
+  const ok = await checkSupabase();
+  if (ok) log.info({}, "db connected");
+  else log.error({}, "error connecting to db");
 };
 const connectRedis = async () => {
   try {
@@ -72,14 +72,15 @@ const connectRedis = async () => {
 
 // ----- routes -----
 // Uniform fleet health contract (standards/platform.md#health): exactly
-// GET /health -> { status, service, version, checks }. Postgres and Redis
-// are both critical: either down means 503. No /api/health alias.
+// GET /health -> { status, service, version, checks }. Supabase (PostgREST)
+// and Redis are both critical: either down means 503. No /api/health alias.
 app.get("/health", async (_req, res) => {
   let database: "up" | "down" = "down";
   let redis: "up" | "down" = "down";
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    database = "up";
+    const { error } = await supabase.from("eryx_stocks").select("id").limit(1);
+    if (!error) database = "up";
+    else log.error({ err: error.message }, "health db failed");
   } catch (e: any) {
     log.error({ err: e?.message }, "health db failed");
   }
@@ -89,7 +90,8 @@ app.get("/health", async (_req, res) => {
   } catch (e: any) {
     log.error({ err: e?.message }, "health redis failed");
   }
-  const status = database === "up" && redis === "up" ? "ok" : "down";
+  // Supabase is the critical dependency; Redis (market quote cache) is optional.
+  const status = database === "down" ? "down" : redis === "down" ? "degraded" : "ok";
   res.status(status === "down" ? 503 : 200).json({
     status,
     service: "eryx-api",
@@ -112,8 +114,8 @@ app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Not found" });
 });
 
-app.listen(PORT, async () => {
-  log.info({ port: PORT }, "API listening");
+app.listen(PORT, HOST, async () => {
+  log.info({ port: PORT, host: HOST }, "API listening");
   await connectDb();
   await connectRedis();
   const started = startOrderTriggerLoop(Number(process.env.TRIGGER_MS) || 3000) !== null;

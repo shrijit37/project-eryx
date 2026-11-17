@@ -1,14 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "@project-eryx/db";
+import { supabase } from "../../lib/supabase";
 import { DEFAULT_INITIAL_CAPITAL } from "../../lib/constants";
 
 /**
- * Identity lives in the shared auth service (better-auth). The browser holds
- * the `.shrijit.tech` session cookie, so the API never mints a token: it
- * replays that cookie to get-session and keys every request off the auth id.
+ * Identity is owned by Supabase Auth (GoTrue) in the shared fleet project.
+ * The API never mints a token: it validates the caller's Supabase access token
+ * with `auth.getUser(token)` (Bearer header or replayed auth cookie) and keys
+ * every request off that immutable auth id.
  */
-const AUTH_URL = process.env.AUTH_URL ?? "https://auth.shrijit.tech";
-const SESSION_COOKIE = "better-auth.session_token=";
 const CACHE_MS = 5_000;
 
 interface AuthUser {
@@ -17,7 +17,51 @@ interface AuthUser {
   name?: string | null;
 }
 
-let cache: { cookie: string; userId: string; at: number } | null = null;
+let cache: { token: string; userId: string; at: number } | null = null;
+
+function metaString(user: any, key: string): string {
+  const value = user?.user_metadata?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+/** Extract a Supabase access token from the standard Bearer header. */
+function tokenFromHeader(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (header?.toLowerCase().startsWith("bearer ")) {
+    const token = header.slice(7).trim();
+    if (token) return token;
+  }
+  return null;
+}
+
+/**
+ * Fall back to a Supabase auth cookie. Browsers either send the raw token
+ * (`sb-access-token`) or the JSON session object (`sb-<ref>-auth-token`) that
+ * Supabase SSR stores.
+ */
+function tokenFromCookies(header: string | undefined): string | null {
+  if (!header) return null;
+  const cookies = new Map<string, string>();
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    cookies.set(part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim()));
+  }
+  for (const name of ["sb-access-token", "supabase-access-token", "access_token"]) {
+    const value = cookies.get(name);
+    if (value && value.startsWith("eyJ")) return value;
+  }
+  for (const [name, value] of cookies) {
+    if (!name.includes("auth-token")) continue;
+    try {
+      const parsed = JSON.parse(value) as { access_token?: string };
+      if (parsed?.access_token) return parsed.access_token;
+    } catch {
+      /* not a JSON session cookie */
+    }
+  }
+  return null;
+}
 
 async function freeUsername(preferred: string): Promise<string> {
   const base =
@@ -57,7 +101,7 @@ async function upsertUser(authUser: AuthUser): Promise<string> {
   // Same provisioning the old /api/auth/register did: a funded paper account
   // plus its immutable DEPOSIT ledger row, so leaderboard P&L still computes
   // as equity - initial deposits.
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const account = await tx.account.create({
       data: {
         user_id: user.id,
@@ -84,36 +128,25 @@ async function upsertUser(authUser: AuthUser): Promise<string> {
   return user.id;
 }
 
-/** Project Eryx is an org on the shared auth service: a valid session alone is
- *  not entry. Membership self-joins on first visit (open signup); false only
- *  when the hub is unreachable, the org is unseeded, or Eryx later flips to
- *  invite-only. */
-async function ensureMembership(cookie: string): Promise<boolean> {
-  const call = (path: string, init?: RequestInit) =>
-    fetch(`${AUTH_URL}${path}`, { ...init, headers: { cookie }, signal: AbortSignal.timeout(5_000) })
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
-  const member = await call("/api/orgs/eryx/member");
-  if (member?.member) return true;
-  const joined = await call("/api/orgs/eryx/join", { method: "POST" });
-  return Boolean(joined?.member);
-}
-
-async function userIdForCookie(cookie: string): Promise<string | null> {
-  if (cache && cache.cookie === cookie && Date.now() - cache.at < CACHE_MS) {
+async function userIdForToken(token: string): Promise<string | null> {
+  if (cache && cache.token === token && Date.now() - cache.at < CACHE_MS) {
     return cache.userId;
   }
-  const res = await fetch(`${AUTH_URL}/api/auth/get-session`, {
-    headers: { cookie },
-    signal: AbortSignal.timeout(5_000),
-  });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { user?: AuthUser } | null;
-  if (!body?.user?.id) return null;
-  if (!(await ensureMembership(cookie))) return null;
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
 
-  const userId = await upsertUser(body.user);
-  cache = { cookie, userId, at: Date.now() };
+  const supabaseUser = data.user;
+  const authUser: AuthUser = {
+    id: supabaseUser.id,
+    email: supabaseUser.email ?? "",
+    name:
+      metaString(supabaseUser, "full_name") ||
+      metaString(supabaseUser, "name") ||
+      supabaseUser.email?.split("@")[0] ||
+      "trader",
+  };
+  const userId = await upsertUser(authUser);
+  cache = { token, userId, at: Date.now() };
   return userId;
 }
 
@@ -122,16 +155,16 @@ const authenticateToken = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const cookie = req.headers.cookie;
-  if (!cookie || !cookie.includes(SESSION_COOKIE)) {
+  const token = tokenFromHeader(req) ?? tokenFromCookies(req.headers.cookie);
+  if (!token) {
     return res.status(401).json({ message: "Sign in to continue." });
   }
 
   let userId: string | null;
   try {
-    userId = await userIdForCookie(cookie);
+    userId = await userIdForToken(token);
   } catch (err) {
-    console.error("[auth] shared auth service unreachable", err);
+    console.error("[auth] supabase auth check failed", err);
     return res.status(503).json({ message: "Authentication service unavailable." });
   }
 

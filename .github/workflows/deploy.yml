@@ -79,13 +79,19 @@ jobs:
       - name: Build and push (amd64+arm64, SHA + latest)
         uses: docker/build-push-action@v6
         with:
+          # The app image is apps/Dockerfile.bun (Bun). The repo-root Dockerfile
+          # is a Postgres image — never use it for the API build.
+          file: ./apps/Dockerfile.bun
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest
-          build-args: APP_VERSION=${{ github.sha }}
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+            SERVICE=api
+            ENTRY=src/app.ts
 
   scan:
     needs: [build]
@@ -158,10 +164,16 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
           EXPECTED_VERSION: ${{ github.sha }}
+          # Coolify container healthcheck: GET /health on port 8080.
+          HEALTH_PATH: /health
+          HEALTH_PORT: "8080"
         run: |
           set -euo pipefail
+          # APP_URL is the public proxy URL (443); the container healthcheck
+          # itself targets HEALTH_PORT/HEALTH_PATH inside the container.
+          echo "waiting for $APP_URL$HEALTH_PATH (container port $HEALTH_PORT)"
           for i in $(seq 1 50); do
-            body=$(curl -s --max-time 10 "$APP_URL/health" || echo '')
+            body=$(curl -s --max-time 10 "$APP_URL$HEALTH_PATH" || echo '')
             if echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q "\"version\":\"$EXPECTED_VERSION\""; then
               echo "healthy at $EXPECTED_VERSION after $i attempt(s)"
               exit 0
