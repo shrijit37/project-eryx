@@ -1,23 +1,44 @@
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../generated/prisma/client.js";
-import dotenv from "dotenv";
-import { fileURLToPath } from "url";
+import { shim } from "./shim.js";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-dotenv.config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
-console.log("Prisma Client:",  process.env.DATABASE_URL);
-
-function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  return new PrismaClient({ adapter });
+/** Fluent model API mirrored from Prisma so route signatures stay unchanged. */
+export interface PrismaModel {
+  findUnique: (args?: any) => Promise<any>;
+  findFirst: (args?: any) => Promise<any>;
+  findMany: (args?: any) => Promise<any[]>;
+  create: (args: any) => Promise<any>;
+  createMany: (args: any) => Promise<{ count: number }>;
+  update: (args: any) => Promise<any>;
+  upsert: (args: any) => Promise<any>;
+  deleteMany: (args?: any) => Promise<{ count: number }>;
+  groupBy: (args: any) => Promise<any[]>;
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+/**
+ * Concrete shape of the `prisma` export. The `Tx` type used across the
+ * execution engine is derived from `$transaction`, so this must be a real
+ * function type rather than `any` (which degenerates to `never`).
+ */
+export interface PrismaLike {
+  user: PrismaModel;
+  agent: PrismaModel;
+  account: PrismaModel;
+  stocks: PrismaModel;
+  holdings: PrismaModel;
+  orders: PrismaModel;
+  trades: PrismaModel;
+  cashLedger: PrismaModel;
+  priceHistory: PrismaModel;
+  $transaction: <T>(fn: (tx: PrismaLike) => Promise<T>) => Promise<T>;
+  $queryRaw: (strings: TemplateStringsArray, ...values: any[]) => Promise<any[]>;
+  $connect: () => Promise<void>;
+  $disconnect: () => Promise<void>;
 }
 
-export * from "../generated/prisma/client.js";
+/**
+ * Drop-in `prisma` export. This used to be a PrismaClient bound to a raw
+ * Postgres connection; it is now the Supabase-backed compatibility shim so
+ * every existing API route keeps its exact call signature and result shape.
+ */
+export const prisma: PrismaLike = shim as unknown as PrismaLike;
+
+export { shim } from "./shim.js";

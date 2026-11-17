@@ -444,7 +444,7 @@ export async function arenaLeaderboard(limit = 50) {
       holdings: { where: { quantity: { gt: 0 } }, include: { stock: true } },
     },
   });
-  const symbols = [...new Set(accounts.flatMap((a) => a.holdings.map((h) => h.stock.symbol)))];
+  const symbols = [...new Set(accounts.flatMap((a) => a.holdings.map((h: any) => h.stock.symbol)))];
   const prices = new Map<string, number>();
   for (const s of symbols) prices.set(s, await getArenaLtp(s));
 

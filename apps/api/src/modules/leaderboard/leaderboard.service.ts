@@ -68,7 +68,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
     },
   });
 
-  const symbols = [...new Set(accounts.flatMap((a) => a.holdings.map((h) => h.stock.symbol)))];
+  const symbols = [...new Set(accounts.flatMap((a) => a.holdings.map((h: any) => h.stock.symbol)))];
   const prices = await lastPrices(symbols);
   const deposits = await netDepositsByAccount(accounts.map((a) => a.id));
 
